@@ -1,0 +1,407 @@
+//기본적으로 필요한 것들 선언
+let title = document.getElementById("gameFrame");
+let Player = document.getElementById("player");
+let playerRect = Player.getBoundingClientRect();
+let gameFrame = document.getElementById("gameFrame");
+let leftEnd = 0;
+let rightEnd = gameFrame.clientWidth;
+let topEnd = 0;
+let bottomEnd = gameFrame.clientHeight;
+let playerPoint = document.getElementById("playerPos");
+let lastTime = performance.now();
+
+//플레이어 움직임에 필요한 것들 선언
+let velocityX = 0;
+let velocityY = 0;
+let playerX = 20;
+let playerY = 20;
+let MoveSpeed = 100;
+let MoveDamping = 0.85;
+let currnetSpeedLimit = 150;
+let walkSpeedLimit = 150;
+let runMulitiplier = 1;
+let runSpeedLimit = 300;
+let totalForceX = 0;
+let totalForceY = 0;
+let playerMass = 0.2;
+let playerPos = {
+  x : playerRect.left + Player.offsetWidth/2,
+  y : playerRect.top + Player.offsetHeight/2,
+}
+
+
+//사격 기능에 필요한 건 다 여기로
+let canvas = document.getElementById("canvas");
+canvas.style.zIndex = 10;
+canvas.width = gameFrame.clientWidth;
+canvas.height = gameFrame.clientHeight;
+const ctx = canvas.getContext("2d")
+let dot = null;
+let bulletTrailX = 0;
+let bulletTrailY = 0;
+let accuracy = 0; //0에 가까울수록 정확도 높음
+let hitPosX = 0;
+let hitPosY = 0;
+let range = 500;
+const mouse = {
+x : canvas.width/2,
+y : canvas.height/2,
+};
+let aimDistanceX;
+let aimDistanceY;
+let bulletDmg = 5;
+
+//벡터 연산
+function magnitude(_x,_y) {
+  if(Math.sqrt(_x * _x + _y * _y) == NaN)
+    {
+      console.log("caution");
+    }
+  return Math.sqrt(_x * _x + _y * _y);
+}
+
+function normalize(_x,_y) {
+  let length = magnitude(_x,_y);
+
+  return {
+    x: _x / length,
+    y: _y / length
+  };
+}
+
+console.log("함수 실행 정상");
+let enemies = []
+enemies.push(new SpawnEnemy(100, 200, 1000, 30))
+
+
+let downkeys = {
+  KeyA: false,
+  KeyS: false,
+  KeyD: false,
+  ShiftLeft: false,
+  Space: false,
+};
+let pressedkeys = {
+  w : false,
+}
+
+function gameLoop(currentTime) {
+  update(currentTime);
+  draw()
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+
+document.addEventListener("keydown", (e) => {
+  if(downkeys.hasOwnProperty(e.code))
+  {
+    if(e.code === "Space" && !downkeys["Space"])
+    {
+      console.log("이새끼 문제는 아님");
+      spawnDot();
+    }
+    downkeys[e.code] = true;
+    pressedkeys[e.code] = true;
+    //console.log(e.code + "눌림");
+    
+  }
+})
+
+
+document.addEventListener("keyup", (e) => {
+  if(downkeys.hasOwnProperty(e.code))
+  {
+    downkeys[e.code] = false;
+    pressedkeys[e.code] = false;
+    console.log(e.code + "떼짐");
+    
+  }
+})
+
+gameFrame.addEventListener("mousedown", (e) =>{
+  if(downkeys["Space"] == true)
+  {
+  fire();
+  }
+
+})
+
+gameFrame.addEventListener("mousemove", (e) =>{
+  let rect = gameFrame.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+})
+
+//적 생산자
+function SpawnEnemy(_width, _height,_left,_hp)
+{
+  this.root = document.createElement("div");
+  gameFrame.appendChild(this.root); 
+  this.root.style.width = _width + "px";
+  this.root.style.height = _height + "px";
+  this.root.style.left = _left + "px";
+  this.root.style.zIndex = 1;
+  this.root.style.top = bottomEnd - this.root.offsetHeight + "px";
+  this.root.style.position = "absolute";
+  this.root.style.backgroundColor = "red";
+  this.root.style.border = "5px solid yellow";
+  this.root.style.borderRadius = "64px"
+  
+  this.hp = _hp;
+  this.isActive = true;
+  this.hitCheck = function(_posX , _posY)
+  {
+    if(this.isActive)
+      {
+        if (_posX > this.root.offsetLeft 
+        &&_posX < this.root.offsetLeft + this.root.offsetWidth)
+        {
+          if (_posY > this.root.offsetTop 
+          &&_posY < this.root.offsetTop + this.root.offsetHeight)
+          {
+            this.hp -= bulletDmg;
+            console.log("명중! 남은체력 : " + this.hp);
+            if(this.hp <= 0)
+              {
+                console.log("죽음");
+                this.dead();
+              }
+          }
+        }
+      }
+    
+  }
+  this.dead = function()
+  {
+    this.isActive = false;
+    this.root.removeAttribute("style");
+    
+  }
+  
+}
+//플레이어에 적용되는 힘 계산
+function calcForce(deltaTime)
+{
+  let accelerationX = totalForceX / playerMass;
+  let accelerationY = totalForceY / playerMass;
+  velocityX += accelerationX * deltaTime;
+  velocityY += accelerationY * deltaTime;
+  
+  if(velocityX > currnetSpeedLimit)
+    {
+      velocityX = currnetSpeedLimit;
+    }
+  else if(velocityX < -currnetSpeedLimit)
+    {
+      velocityX = -currnetSpeedLimit;
+    }
+  
+  
+  
+  playerX += velocityX * deltaTime;
+  playerY += velocityY * deltaTime;
+  
+}
+//플레이어 위치 적용
+function UpdatePlayerPos()
+{
+  Player.style.left = playerX + "px";
+  Player.style.top = playerY + "px";
+}
+//속도 감쇠 적용
+function applyDamping()
+{
+  velocityX = velocityX * MoveDamping;
+  velocityY = velocityY * MoveDamping;
+}
+//눌린 키 확인
+function checkDownKeys()
+{
+  if (downkeys["ShiftLeft"])
+    {
+      runMulitiplier = 1.5;
+      currnetSpeedLimit = runSpeedLimit;
+    }
+  else
+    {
+      runMulitiplier = 1;
+      currnetSpeedLimit = walkSpeedLimit;
+    }
+  
+  if (downkeys["KeyD"]) {
+    totalForceX += MoveSpeed*runMulitiplier;
+    
+  }
+
+  if (downkeys["KeyA"]) {
+    totalForceX -= MoveSpeed*runMulitiplier;
+    
+  }
+  
+  if(downkeys["KeyD"] == false && downkeys["KeyA"] == false)
+  {
+    applyDamping(); 
+  }
+}
+//중력 적용
+function applyGravity()
+{
+  //console.log("중력 함수 작동중");
+  totalForceY += 2500;
+  //playerPos.x = player.style.left + player.offsetWidth/2;
+  //playerPos.y = player.style.top + player.offsetHeight/2;
+}
+//눌린키(한번만 눌리는 애들)확인
+function checkPressedKeys()
+{
+  /*
+  if (pressedkeys["KeyW"]) {
+    velocityY -= 5000;
+    pressedkeys["w"] = false;
+  }
+  */
+}
+//플레이어의 위치를 게임 화면 안으로 제한
+function framing()
+{
+  if(playerX > rightEnd - Player.offsetWidth)
+    {
+      playerX = rightEnd - Player.offsetWidth;
+    }
+  if(playerX < leftEnd)
+    {
+      playerX = leftEnd;
+    }
+  if(playerY < topEnd)
+    {
+      playerY = topEnd;
+    }
+  if(playerY > bottomEnd - Player.offsetHeight)
+    {
+      playerY = bottomEnd - Player.offsetHeight;
+      velocityY = 0;
+    }
+}
+
+function fire()
+{
+  hitPosX = dot.x;
+  hitPosY = dot.y;
+  //console.log(hitPosX);
+  //console.log(hitPosY);
+  enemies.forEach((enemy) => {
+  enemy.hitCheck(hitPosX, hitPosY)
+  })
+}
+
+function spawnDot() //조준점의 랜덤 생성 담당
+{
+  //console.log("점 스폰");
+  const radius = 120;
+  const angle = Math.random() * Math.PI * 2;
+  const distance = Math.random() * radius;
+  let randomY = Math.random();
+  dot = {
+    x: mouse.x + Math.cos(angle) * distance,
+    y: mouse.y + Math.sin(angle) * distance,
+    vx: 0,
+    vy: 0,
+    size: 6,
+    // 핵심 파라미터
+    spring: 0.01,
+    damping: 0.9,
+  };
+  //console.log(dot.x);
+  //console.log(dot.y);
+}
+
+function followMouse() //조준점이 마우스를 따라다니도록
+{
+  if (!dot) return;
+  //normalize를 안한 건 거리도 반영을 하겠다는 얘기겠지
+  const dx = mouse.x-6 - dot.x;
+  const dy = mouse.y-6 - dot.y;
+
+  // 스프링 힘
+  dot.vx += dx * dot.spring;
+  dot.vy += dy * dot.spring;
+
+  // 약간의 랜덤성 (살짝만!)
+  dot.vx += (Math.random() - 0.5) * accuracy;
+  dot.vy += (Math.random() - 0.5) * accuracy;
+
+  // 감쇠 (마찰)
+  dot.vx *= dot.damping;
+  dot.vy *= dot.damping;
+
+  dot.x += dot.vx;
+  dot.y += dot.vy;
+}
+
+function circleFraming()
+{
+  playerPos.x = playerX + player.offsetWidth/2;
+  playerPos.y = playerY + player.offsetHeight/2;
+  aimDistanceX = mouse.x - playerPos.x;
+  aimDistanceY = mouse.y - playerPos.y;
+  let curDistance = magnitude(aimDistanceX,aimDistanceY);
+  //console.log(mouse.x,mouse.y);
+  //console.log(playerPos.x,playerPos.y);
+  //console.log(curDistance);
+  //console.log(aimDistanceX,aimDistanceY);
+  if(curDistance > range)
+    {
+      //console.log("거리 제약 작동중");
+      let playerToAim = normalize(aimDistanceX,aimDistanceY);
+      mouse.x = playerPos.x + playerToAim.x * range;
+      mouse.y = playerPos.y + playerToAim.y * range;
+    }
+  
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (dot && downkeys["Space"] == true) {
+  ctx.beginPath();
+  ctx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
+  ctx.fillStyle = "white";
+  ctx.fill();
+}
+
+// 마우스 표시
+ctx.beginPath();
+ctx.arc(mouse.x-6, mouse.y-6, 6, 0, Math.PI * 2);
+ctx.fillStyle = "blue";
+ctx.fill();
+
+if (dot) {
+  ctx.beginPath();
+  ctx.arc(hitPosX,hitPosY, 6, 0, Math.PI * 2);
+  ctx.fillStyle = "grey";
+  ctx.fill();
+  }
+}
+
+
+
+
+
+
+//게임 업데이트 함수
+function update(currentTime) {
+  let deltaTime = (currentTime - lastTime)/1000;
+  lastTime = currentTime;
+  totalForceX = 0;
+  totalForceY = 0;
+  checkDownKeys();
+  checkPressedKeys();
+  applyGravity();
+  calcForce(deltaTime);
+  framing();
+  circleFraming()
+  UpdatePlayerPos();
+  followMouse()
+
+}
