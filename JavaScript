@@ -539,8 +539,10 @@ if (dot) {
 
 
 
-//게임 업데이트 함수
-const originalUpdate = function(currentTime) {
+
+
+function update(currentTime)
+{
   let deltaTime = (currentTime - lastTime)/1000;
   lastTime = currentTime;
   totalForceX = 0;
@@ -553,10 +555,5 @@ const originalUpdate = function(currentTime) {
   circleFraming()
   UpdatePlayerPos();
   followMouse()
-};
-
-function update(currentTime)
-{
-  originalUpdate(currentTime);
   processInteractions();
 }
