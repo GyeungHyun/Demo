@@ -214,34 +214,71 @@ let currentInteractable = null;
 const interactRange = 130;
 const interactables = [];
 
-const interactableTypeStyles = {
-  door: {
+// ========== 상호작용 가능한 객체 타입 정의 배열 ==========
+const interactableTypes = [
+  {
+    type: "door",
+    name: "문",
+    width: 100,
+    height: 220,
+    sprite: "", // 이미지 URL을 여기에 입력 (비어있으면 색상으로 표시)
     backgroundColor: "rgba(80, 80, 140, 0.95)",
-    border: "2px solid #7f7fff"
+    border: "2px solid #7f7fff",
+    interaction: function() {
+      console.log("door: 문이 열렸다.");
+      this.root.style.backgroundColor = "rgba(100, 180, 220, 0.95)";
+      this.root.textContent = "열림";
+    }
   },
-  chest: {
+  {
+    type: "chest",
+    name: "보물상자",
+    width: 120,
+    height: 120,
+    sprite: "", // 이미지 URL을 여기에 입력
     backgroundColor: "rgba(140, 100, 60, 0.95)",
-    border: "2px solid #ffcc66"
+    border: "2px solid #ffcc66",
+    interaction: function() {
+      console.log("chest: 아이템을 획득했다!");
+      this.root.style.backgroundColor = "rgba(200, 160, 80, 0.95)";
+      this.root.textContent = "획득!";
+    }
   },
-  save: {
+  {
+    type: "save",
+    name: "저장소",
+    width: 140,
+    height: 100,
+    sprite: "", // 이미지 URL을 여기에 입력
     backgroundColor: "rgba(60, 120, 60, 0.95)",
-    border: "2px solid #88ff88"
-  },
-  default: {
-    backgroundColor: "rgba(80, 80, 80, 0.8)",
-    border: "2px solid #bbb"
+    border: "2px solid #88ff88",
+    interaction: function() {
+      console.log("save: 게임이 저장되었습니다.");
+      this.root.style.backgroundColor = "rgba(100, 200, 100, 0.95)";
+      this.root.textContent = "저장됨";
+    }
   }
-};
+];
 
-function Interactable(_x,_y,_width,_height,_type,_name,_interaction)
+function Interactable(_x, _y, _type)
 {
+  // 타입에서 정의된 객체 찾기
+  const typeDefinition = interactableTypes.find(t => t.type === _type);
+  
+  if (!typeDefinition) {
+    console.error(`Interactable type "${_type}" not found!`);
+    return;
+  }
+
   this.x = _x;
   this.y = _y;
-  this.width = _width;
-  this.height = _height;
+  this.width = typeDefinition.width;
+  this.height = typeDefinition.height;
   this.type = _type;
-  this.name = _name;
-  this.interaction = _interaction;
+  this.name = typeDefinition.name;
+  this.sprite = typeDefinition.sprite;
+  this.interaction = typeDefinition.interaction.bind(this);
+  
   this.root = document.createElement("div");
   this.root.style.position = "absolute";
   this.root.style.left = this.x + "px";
@@ -261,9 +298,15 @@ function Interactable(_x,_y,_width,_height,_type,_name,_interaction)
   this.root.style.pointerEvents = "none";
   this.root.style.zIndex = 5;
 
-  const typeStyle = interactableTypeStyles[this.type] || interactableTypeStyles.default;
-  this.root.style.backgroundColor = typeStyle.backgroundColor;
-  this.root.style.border = typeStyle.border;
+  // 스프라이트 이미지가 있으면 사용, 없으면 색상으로 표시
+  if (this.sprite) {
+    this.root.style.backgroundImage = `url('${this.sprite}')`;
+    this.root.style.backgroundSize = "cover";
+    this.root.style.backgroundPosition = "center";
+  } else {
+    this.root.style.backgroundColor = typeDefinition.backgroundColor;
+    this.root.style.border = typeDefinition.border;
+  }
 
   this.root.textContent = this.name;
   gameFrame.appendChild(this.root);
@@ -286,21 +329,9 @@ const interactionHint = document.getElementById("interactionHint");
 
 function createInteractables()
 {
-  interactables.push(new Interactable(280, bottomEnd - 220, 100, 220, "door", "문", function(){
-    console.log("door: 문이 열렸다.");
-    this.root.style.backgroundColor = "rgba(100, 180, 220, 0.95)";
-    this.root.textContent = "열림";
-  }));
-  interactables.push(new Interactable(520, bottomEnd - 120, 120, 120, "chest", "보물상자", function(){
-    console.log("chest: 아이템을 획득했다!");
-    this.root.style.backgroundColor = "rgba(200, 160, 80, 0.95)";
-    this.root.textContent = "획득!";
-  }));
-  interactables.push(new Interactable(780, bottomEnd - 100, 140, 100, "save", "저장소", function(){
-    console.log("save: 게임이 저장되었습니다.");
-    this.root.style.backgroundColor = "rgba(100, 200, 100, 0.95)";
-    this.root.textContent = "저장됨";
-  }));
+  interactables.push(new Interactable(280, bottomEnd - 220, "door"));
+  interactables.push(new Interactable(520, bottomEnd - 120, "chest"));
+  interactables.push(new Interactable(780, bottomEnd - 100, "save"));
 }
 createInteractables();
 
@@ -533,10 +564,6 @@ if (dot) {
   ctx.fill();
   }
 }
-
-
-
-
 
 
 
