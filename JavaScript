@@ -209,6 +209,156 @@ function UpdatePlayerPos()
   Player.style.left = playerX + "px";
   Player.style.top = playerY + "px";
 }
+
+let currentInteractable = null;
+const interactRange = 130;
+const interactables = [];
+
+const interactableTypeStyles = {
+  door: {
+    backgroundColor: "rgba(80, 80, 140, 0.95)",
+    border: "2px solid #7f7fff"
+  },
+  chest: {
+    backgroundColor: "rgba(140, 100, 60, 0.95)",
+    border: "2px solid #ffcc66"
+  },
+  save: {
+    backgroundColor: "rgba(60, 120, 60, 0.95)",
+    border: "2px solid #88ff88"
+  },
+  default: {
+    backgroundColor: "rgba(80, 80, 80, 0.8)",
+    border: "2px solid #bbb"
+  }
+};
+
+function Interactable(_x,_y,_width,_height,_type,_name,_interaction)
+{
+  this.x = _x;
+  this.y = _y;
+  this.width = _width;
+  this.height = _height;
+  this.type = _type;
+  this.name = _name;
+  this.interaction = _interaction;
+  this.root = document.createElement("div");
+  this.root.style.position = "absolute";
+  this.root.style.left = this.x + "px";
+  this.root.style.top = this.y + "px";
+  this.root.style.width = this.width + "px";
+  this.root.style.height = this.height + "px";
+  this.root.style.display = "flex";
+  this.root.style.justifyContent = "center";
+  this.root.style.alignItems = "center";
+  this.root.style.color = "white";
+  this.root.style.fontSize = "14px";
+  this.root.style.fontFamily = "Arial, sans-serif";
+  this.root.style.textAlign = "center";
+  this.root.style.borderRadius = "8px";
+  this.root.style.boxSizing = "border-box";
+  this.root.style.padding = "4px";
+  this.root.style.pointerEvents = "none";
+  this.root.style.zIndex = 5;
+
+  const typeStyle = interactableTypeStyles[this.type] || interactableTypeStyles.default;
+  this.root.style.backgroundColor = typeStyle.backgroundColor;
+  this.root.style.border = typeStyle.border;
+
+  this.root.textContent = this.name;
+  gameFrame.appendChild(this.root);
+
+  this.center = function() {
+    return {
+      x: this.x + this.width / 2,
+      y: this.y + this.height / 2
+    };
+  };
+
+  this.tryInteract = function() {
+    if (this.interaction) {
+      this.interaction();
+    }
+  };
+}
+
+const interactionHint = document.getElementById("interactionHint");
+
+function createInteractables()
+{
+  interactables.push(new Interactable(280, bottomEnd - 220, 100, 220, "door", "문", function(){
+    console.log("door: 문이 열렸다.");
+    this.root.style.backgroundColor = "rgba(100, 180, 220, 0.95)";
+    this.root.textContent = "열림";
+  }));
+  interactables.push(new Interactable(520, bottomEnd - 120, 120, 120, "chest", "보물상자", function(){
+    console.log("chest: 아이템을 획득했다!");
+    this.root.style.backgroundColor = "rgba(200, 160, 80, 0.95)";
+    this.root.textContent = "획득!";
+  }));
+  interactables.push(new Interactable(780, bottomEnd - 100, 140, 100, "save", "저장소", function(){
+    console.log("save: 게임이 저장되었습니다.");
+    this.root.style.backgroundColor = "rgba(100, 200, 100, 0.95)";
+    this.root.textContent = "저장됨";
+  }));
+}
+createInteractables();
+
+function getDistance(x1,y1,x2,y2)
+{
+  return magnitude(x1 - x2, y1 - y2);
+}
+
+function updateInteractionHint()
+{
+  if (!interactionHint) return;
+  if (currentInteractable) {
+    interactionHint.textContent = "E : " + currentInteractable.name + " 상호작용";
+  } else {
+    interactionHint.textContent = "";
+  }
+}
+
+function findNearestInteractable()
+{
+  currentInteractable = null;
+  const playerCenter = {
+    x: playerX + Player.offsetWidth / 2,
+    y: playerY + Player.offsetHeight / 2
+  };
+
+  let closestDistance = Infinity;
+  interactables.forEach((item) => {
+    const center = item.center();
+    const distance = getDistance(playerCenter.x, playerCenter.y, center.x, center.y);
+    if (distance <= interactRange && distance < closestDistance) {
+      closestDistance = distance;
+      currentInteractable = item;
+    }
+  });
+
+  updateInteractionHint();
+}
+
+function processInteractions()
+{
+  findNearestInteractable();
+}
+
+function tryInteract()
+{
+  if (currentInteractable) {
+    currentInteractable.tryInteract();
+  }
+}
+
+document.addEventListener("keydown", (e) =>
+{
+  if (e.code === "KeyE") {
+    tryInteract();
+  }
+});
+
 //속도 감쇠 적용
 function applyDamping()
 {
@@ -390,7 +540,7 @@ if (dot) {
 
 
 //게임 업데이트 함수
-function update(currentTime) {
+const originalUpdate = function(currentTime) {
   let deltaTime = (currentTime - lastTime)/1000;
   lastTime = currentTime;
   totalForceX = 0;
@@ -403,5 +553,10 @@ function update(currentTime) {
   circleFraming()
   UpdatePlayerPos();
   followMouse()
+};
 
+function update(currentTime)
+{
+  originalUpdate(currentTime);
+  processInteractions();
 }
