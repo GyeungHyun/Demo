@@ -30,14 +30,14 @@ class InputManager {
     if (this.downkeys.hasOwnProperty(e.code)) {
       if (e.code === "Space" && !this.downkeys["Space"]) {
         console.log("이새끼 문제는 아님");
-        GameEvents.fire("spacePressed");
+        GameEvents.emit("spacePressed");
       }
       this.downkeys[e.code] = true;
       this.pressedkeys[e.code] = true;
     }
     // E 키 입력 (상호작용)
     if (e.code === "KeyE") {
-      GameEvents.fire("interactPressed");
+      GameEvents.emit("interactPressed");
     }
   }
 
@@ -76,7 +76,7 @@ class GameEvents {
     this.listeners[eventName].push(callback);
   }
 
-  static fire(eventName, data = null) {
+  static emit(eventName, data = null) {
     if (this.listeners[eventName]) {
       this.listeners[eventName].forEach((cb) => cb(data));
     }
@@ -402,7 +402,7 @@ class AimSystem {
     if (!this.dot) return;
     this.hitPosX = this.dot.x;
     this.hitPosY = this.dot.y;
-    GameEvents.fire("fire", { x: this.hitPosX, y: this.hitPosY });
+    GameEvents.emit("fire", { x: this.hitPosX, y: this.hitPosY });
   }
 
   getDot() {
