@@ -1,6 +1,7 @@
 // ==========================================
 // 1. InputManager - 모든 입력을 한곳에서 관리
 // ==========================================
+//생산자 함수로 키 배열을 만든다. +setupListener를 실행시킨다.
 class InputManager {
   constructor() {
     this.downkeys = {
@@ -21,11 +22,14 @@ class InputManager {
     this.setupListeners();
   }
 
+  
+  //이벤트 리스너를 추가한다. 이벤트 리스너가 추가되면 특정 이벤트가 발생할 때 마다 정해둔 함수가 실행된다.
+  //아래의 경우 키보드의 키가 눌릴 때마다 키 종류에 따라 함수를 실행하는 로직이었는데, 리팩토링을 진행하면서 함수를 handleKeyDown/Up으로 따로 빼버렸다.
   setupListeners() {
     document.addEventListener("keydown", (e) => this.handleKeyDown(e));
     document.addEventListener("keyup", (e) => this.handleKeyUp(e));
   }
-
+  
   handleKeyDown(e) {
     if (this.downkeys.hasOwnProperty(e.code)) {
       if (e.code === "Space" && !this.downkeys["Space"]) {
@@ -66,19 +70,22 @@ class InputManager {
 // ==========================================
 // 2. GameEvents - 간단한 이벤트 시스템
 // ==========================================
+
 class GameEvents {
   static listeners = {};
 
-  static on(eventName, callback) {
-    if (!this.listeners[eventName]) {
+  //이벤트를 추가하는 로직 같은데
+  static on(eventName, callback) { //이벤트 이름이랑 그 내용을 받는다
+    if (!this.listeners[eventName]) { //해당 이름의 이벤트가 리스너한테 없으면 추가한다
       this.listeners[eventName] = [];
     }
-    this.listeners[eventName].push(callback);
+    this.listeners[eventName].push(callback); //만든 이벤트 함수 안에 내용물을 넣는다
   }
 
+  //이건 이벤트 호출 함수일거고
   static emit(eventName, data = null) {
     if (this.listeners[eventName]) {
-      this.listeners[eventName].forEach((cb) => cb(data));
+      this.listeners[eventName].forEach(function(cb) => cb(data));  //forEach문으로 배열을 순회하면서 얻는 함수들을 cb라고 정의한다. 각 cb들에 data를 넣어 호출한다.
     }
   }
 }
@@ -86,6 +93,7 @@ class GameEvents {
 // ==========================================
 // 3. GameWorld - 게임 객체 관리
 // ==========================================
+//객체 관리 스크립트, 마찬가지로 생산자를 포함
 class GameWorld {
   constructor(gameFrame) {
     this.gameFrame = gameFrame;
@@ -131,6 +139,7 @@ class GameWorld {
 // ==========================================
 // 4. GameSystems - 매 프레임 실행할 시스템 관리
 // ==========================================
+//기존의 업데이트 함수를 대체하여, 배열 안에 매 프레임 실행할 시스템들을 넣어놓고 시스템 안의 업데이트 함수를 호출.
 class GameSystems {
   constructor() {
     this.systems = [];
@@ -152,6 +161,7 @@ class GameSystems {
 // ==========================================
 // 5. RenderSystems - 매 프레임 그릴 것 관리
 // ==========================================
+// 다른 것들이랑 마찬가지
 class RenderSystems {
   constructor() {
     this.renderers = [];
@@ -173,6 +183,7 @@ class RenderSystems {
 // ==========================================
 // 6. PlayerSystem - 플레이어 이동 및 상태 관리
 // ==========================================
+//따로 빼놨을 뿐 크게 달라진 것 없음
 class PlayerSystem {
   constructor(playerElement, gameFrame, input) {
     this.player = playerElement;
@@ -305,6 +316,7 @@ class PlayerSystem {
 // ==========================================
 // 7. AimSystem - 조준점 관리
 // ==========================================
+//마우스 입력 받는 부분을 따로 빼놨네, 그것 말고는 알고리즘 자체는 유지
 class AimSystem {
   constructor(canvas, gameFrame, playerSystem, input) {
     this.canvas = canvas;
