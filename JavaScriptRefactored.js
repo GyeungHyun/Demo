@@ -563,6 +563,7 @@ class WeaponSystem {
         name: "권총",
         magazineSize: 12,
         ammoType: "9mm",
+        radius : 120,
         range: 500,
         damage: 10,
         accuracy: 0.5,
@@ -578,6 +579,7 @@ class WeaponSystem {
         name: "근접공격",
         magazineSize: Infinity,
         ammoType: "stamina",
+        radius : 50,
         range: 80,
         damage: 20,
         accuracy: 0,
@@ -628,6 +630,7 @@ class WeaponSystem {
 
     const base = this.getCurrentBase();
 
+    this.aimSyetem.radius = base.radius;
     this.aimSystem.range = base.range;
     this.aimSystem.accuracy = base.accuracy;
 
