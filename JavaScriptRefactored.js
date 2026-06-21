@@ -342,7 +342,7 @@ class AimSystem {
 
     this.gameFrame.addEventListener("mousedown", (e) => {
       if (this.input.isKeyDown("Space")) {
-        this.fire();
+        this.fire() 
       }
     });
 
@@ -414,7 +414,10 @@ class AimSystem {
     if (!this.dot) return;
     this.hitPosX = this.dot.x;
     this.hitPosY = this.dot.y;
-    GameEvents.emit("fire", { x: this.hitPosX, y: this.hitPosY });
+    GameEvents.emit("fireRequest", {
+      x: this.hitPosX,
+      y: this.hitPosY,
+    });
   }
 
   getDot() {
@@ -436,15 +439,15 @@ class AimSystem {
 class HitSystem {
   constructor(gameWorld) {
     this.gameWorld = gameWorld;
-    GameEvents.on("fire", (data) => {
+    GameEvents.on("weaponFired", (data) => {
       this.handleFire(data);
     });
   }
 
   handleFire(data) {
-    const { x, y } = data;
+    const { x, y , damage } = data;
     this.gameWorld.getEnemies().forEach((enemy) => {
-      enemy.hitCheck(x, y);
+      enemy.hitCheck(x, y,damage);
     });
   }
 }
@@ -544,6 +547,148 @@ class AimRenderer {
       ctx.fillStyle = "grey";
       ctx.fill();
     }
+  }
+}
+
+// ==========================================
+// 11. WeaponSystem - 무기 시스템 
+// ==========================================
+
+class WeaponSystem {
+  constructor(aimSystem) {
+    this.aimSystem = aimSystem;
+
+    this.weaponBaseData = {
+      pistol: {
+        name: "권총",
+        magazineSize: 12,
+        ammoType: "9mm",
+        range: 500,
+        damage: 10,
+        accuracy: 0.5,
+        aimFollowSpeed: 0.01,
+        reloadTime: 1.2,
+        fireCooldown: 0.25,
+        appearance: "pistol",
+        reloadSound: "",
+        fireSound: "",
+      },
+
+      knife: {
+        name: "근접공격",
+        magazineSize: Infinity,
+        ammoType: "stamina",
+        range: 80,
+        damage: 20,
+        accuracy: 0,
+        aimFollowSpeed: 0.02,
+        reloadTime: 0.5,
+        fireCooldown: 0.4,
+        appearance: "knife",
+        reloadSound: "",
+        fireSound: "",
+      },
+    };
+
+    this.weaponStateData = {
+      pistol: {
+        currentAmmo: 12,
+        reserveAmmo: 36,
+        cooldownTimer: 0,
+        isReloading: false,
+      },
+
+      knife: {
+        currentAmmo: Infinity,
+        reserveAmmo: Infinity,
+        cooldownTimer: 0,
+        isReloading: false,
+      },
+    };
+
+    this.currentWeaponId = "pistol";
+
+    GameEvents.on("fireRequest", (data) => {
+      this.tryFire(data);
+    });
+  }
+
+  getCurrentBase() {
+    return this.weaponBaseData[this.currentWeaponId];
+  }
+
+  getCurrentState() {
+    return this.weaponStateData[this.currentWeaponId];
+  }
+
+  equipWeapon(id) {
+    if (!this.weaponBaseData[id]) return;
+
+    this.currentWeaponId = id;
+
+    const base = this.getCurrentBase();
+
+    this.aimSystem.range = base.range;
+    this.aimSystem.accuracy = base.accuracy;
+
+    if (this.aimSystem.dot) {
+      this.aimSystem.dot.spring = base.aimFollowSpeed;
+    }
+
+    console.log(base.name + " 장착");
+  }
+
+  update(deltaTime) {
+    const state = this.getCurrentState();
+
+    if (state.cooldownTimer > 0) {
+      state.cooldownTimer -= deltaTime;
+    }
+  }
+
+  tryFire(data) {
+    const base = this.getCurrentBase();
+    const state = this.getCurrentState();
+
+    if (state.cooldownTimer > 0) return;
+    if (state.isReloading) return;
+    if (state.currentAmmo <= 0) {
+      this.reload();
+      return;
+    }
+
+    if (state.currentAmmo !== Infinity) {
+      state.currentAmmo -= 1;
+    }
+
+    state.cooldownTimer = base.fireCooldown;
+
+    GameEvents.emit("weaponFired", {
+      x: data.x,
+      y: data.y,
+      damage: base.damage,
+      range: base.range,
+      weaponId: this.currentWeaponId,
+    });
+
+    console.log(base.name + " 발사 / 남은 탄:", state.currentAmmo);
+  }
+
+  reload() {
+    const base = this.getCurrentBase();
+    const state = this.getCurrentState();
+
+    if (state.currentAmmo === Infinity) return;
+    if (state.reserveAmmo <= 0) return;
+    if (state.currentAmmo >= base.magazineSize) return;
+
+    const needAmmo = base.magazineSize - state.currentAmmo;
+    const reloadAmount = Math.min(needAmmo, state.reserveAmmo);
+
+    state.currentAmmo += reloadAmount;
+    state.reserveAmmo -= reloadAmount;
+
+    console.log(base.name + " 재장전");
   }
 }
 
@@ -699,9 +844,8 @@ function SpawnEnemy(_width, _height, _left, _hp, gameFrame) {
 
   this.hp = _hp;
   this.isActive = true;
-  this.bulletDmg = 5;
 
-  this.hitCheck = function (_posX, _posY) {
+  this.hitCheck = function (_posX, _posY, _damage) {
     if (this.isActive) {
       if (
         _posX > this.root.offsetLeft &&
@@ -711,7 +855,7 @@ function SpawnEnemy(_width, _height, _left, _hp, gameFrame) {
           _posY > this.root.offsetTop &&
           _posY < this.root.offsetTop + this.root.offsetHeight
         ) {
-          this.hp -= this.bulletDmg;
+          this.hp -= _damage;
           console.log("명중! 남은체력 : " + this.hp);
           if (this.hp <= 0) {
             console.log("죽음");
@@ -752,6 +896,16 @@ gameSystems.register(playerSystem);
 // 조준 시스템
 const aimSystem = new AimSystem(canvas, gameFrame, playerSystem, input);
 gameSystems.register(aimSystem);
+
+//무기 시스템
+const weaponSystem = new WeaponSystem(aimSystem);
+gameSystems.register(weaponSystem);
+window.weaponSystem = weaponSystem;
+
+//무기 테스트용
+//weaponSystem.equipWeapon("knife");
+weaponSystem.equipWeapon("pistol");
+
 
 // 피격 시스템
 const hitSystem = new HitSystem(gameWorld);
