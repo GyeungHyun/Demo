@@ -85,7 +85,7 @@ class GameEvents {
   //이건 이벤트 호출 함수일거고
   static emit(eventName, data = null) {
     if (this.listeners[eventName]) {
-      this.listeners[eventName].forEach(function(cb) => cb(data));  //forEach문으로 배열을 순회하면서 얻는 함수들을 cb라고 정의한다. 각 cb들에 data를 넣어 호출한다.
+      this.listeners[eventName].forEach(function(cb) { cb(data)});  //forEach문으로 배열을 순회하면서 얻는 함수들을 cb라고 정의한다. 각 cb들에 data를 넣어 호출한다.
     }
   }
 }
@@ -324,6 +324,7 @@ class AimSystem {
     this.playerSystem = playerSystem;
     this.input = input;
 
+    this.radius = 0;
     this.dot = null;
     this.accuracy = 0;
     this.range = 500;
@@ -357,9 +358,8 @@ class AimSystem {
   }
 
   spawnDot() {
-    const radius = 120;
     const angle = Math.random() * Math.PI * 2;
-    const distance = Math.random() * radius;
+    const distance = Math.random() * this.radius;
     const mouse = this.input.getMousePos();
 
     this.dot = {
