@@ -331,6 +331,8 @@ class AimSystem {
     this.bulletDmg = 5;
     this.hitPosX = 0;
     this.hitPosY = 0;
+    this.recoilX = 0;
+    this.recoilY = 0;
 
     this.setupCanvasListener();
   }
@@ -344,6 +346,7 @@ class AimSystem {
     this.gameFrame.addEventListener("mousedown", (e) => {
       if (this.input.isKeyDown("Space")) {
         this.fire() 
+        this.applyRecoil();
       }
     });
 
@@ -420,6 +423,13 @@ class AimSystem {
     });
   }
 
+  applyRecoil() //반동 함수 추가
+  {
+    this.dot.vx += (Math.random() - 0.5)*this.recoilX;  //여긴그대로, 좌우반동은 적게하고 싶으니까 따로 관리하고
+    this.dot.vy -= Math.random()*this.recoilY; //반동은 위로만 작용하니까 0.5를 빼지 않아도 된다, 좌표계가 뒤집혀있으니까 빼주고
+  }
+  
+  
   getDot() {
     return this.dot;
   }
@@ -564,6 +574,8 @@ class WeaponSystem {
         magazineSize: 12,
         ammoType: "9mm",
         radius : 120,
+        recoilX : 5,
+        recoilY : 10,
         range: 500,
         damage: 10,
         accuracy: 0.5,
@@ -580,6 +592,8 @@ class WeaponSystem {
         magazineSize: Infinity,
         ammoType: "stamina",
         radius : 50,
+        recoilX : 5,
+        recoilY : 10,
         range: 80,
         damage: 20,
         accuracy: 0,
@@ -630,9 +644,11 @@ class WeaponSystem {
 
     const base = this.getCurrentBase();
 
-    this.aimSyetem.radius = base.radius;
+    this.aimSystem.radius = base.radius;
     this.aimSystem.range = base.range;
     this.aimSystem.accuracy = base.accuracy;
+    this.aimSystem.recoilX = base.recoilX;
+    this.aimSystem.recoilY = base.recoilY;
 
     if (this.aimSystem.dot) {
       this.aimSystem.dot.spring = base.aimFollowSpeed;
@@ -970,3 +986,13 @@ function gameLoop(currentTime) {
 requestAnimationFrame(gameLoop);
 
 console.log("게임 시작!");
+
+// ==========================================
+// 도움말
+// ==========================================
+/*
+  1.좌표계는 뒤집혀있음
+  2.무기 구조 중 추가하고 싶은 게 있으면 aimSystem에 먼저 추가하고 무기 구조체에 추가, equipWeapon함수에서 두 요소를 연동해주어야 함
+  
+*/
+
