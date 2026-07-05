@@ -43,6 +43,11 @@ class InputManager {
     if (e.code === "KeyE") {
       GameEvents.emit("interactPressed");
     }
+
+    if(e.code === "KeyR"){
+      console.log("장전키 눌림");
+      GameEvents.emit("reloadPressed");
+    }
   }
 
   handleKeyUp(e) {
@@ -228,7 +233,7 @@ class PlayerSystem {
     this.framing();
     this.updatePlayerPos();
   }
-
+  //handleKeyDown이랑 분리해서 관리하는 이유는 플레이어 이동이 매 프레임마다 처리해야 하는 상태형 입력이기 때문
   checkDownKeys() {
     if (this.input.isKeyDown("ShiftLeft")) {
       this.runMulitiplier = 1.5;
@@ -627,7 +632,17 @@ class WeaponSystem {
     GameEvents.on("fireRequest", (data) => {
       this.tryFire(data);
     });
+
+    GameEvents.on("reloadPressed", () => {
+      console.log("장전함수 호출");
+      this.reload();
+    });
+    
+    
   }
+  
+
+ 
 
   getCurrentBase() {
     return this.weaponBaseData[this.currentWeaponId];
@@ -696,7 +711,7 @@ class WeaponSystem {
   reload() {
     const base = this.getCurrentBase();
     const state = this.getCurrentState();
-
+    if (state.isReloading) return;
     if (state.currentAmmo === Infinity) return;
     if (state.reserveAmmo <= 0) return;
     if (state.currentAmmo >= base.magazineSize) return;
