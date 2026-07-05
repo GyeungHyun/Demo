@@ -24,7 +24,7 @@ class InputManager {
 
   
   //이벤트 리스너를 추가한다. 이벤트 리스너가 추가되면 특정 이벤트가 발생할 때 마다 정해둔 함수가 실행된다.
-  //아래의 경우 키보드의 키가 눌릴 때마다 키 종류에 따라 함수를 실행하는 로직이었는데, 리팩토링을 진행하면서 함수를 handleKeyDown/Up으로 따로 빼버렸다.
+  //아래의 경우 키보드의 키가 눌릴 때마다 키 종류에 따라 함수를 실행하는 로직이었는데, 리팩토링을 진행하면서 함수를 handleKeyDown/Up으로 따로 빼버[...]
   setupListeners() {
     document.addEventListener("keydown", (e) => this.handleKeyDown(e));
     document.addEventListener("keyup", (e) => this.handleKeyUp(e));
@@ -566,7 +566,72 @@ class AimRenderer {
 }
 
 // ==========================================
-// 11. WeaponSystem - 무기 시스템 
+// 11. ReloadRenderer - 재장전 UI 표시
+// ==========================================
+class ReloadRenderer {
+  constructor(weaponSystem) {
+    this.weaponSystem = weaponSystem;
+  }
+
+  draw(ctx) {
+    const state = this.weaponSystem.getCurrentState();
+    const base = this.weaponSystem.getCurrentBase();
+    
+    if (!state.isReloading) return;
+
+    // 재장전 진행률 표시
+    const barWidth = 200;
+    const barHeight = 30;
+    const barX = ctx.canvas.width / 2 - barWidth / 2;
+    const barY = 30;
+
+    // 배경
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    // 진행 바
+    const progress = state.reloadTimer / base.reloadTime;
+    ctx.fillStyle = "#00ff00";
+    ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+
+    // 테두리
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+    // 텍스트
+    ctx.fillStyle = "white";
+    ctx.font = "16px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("재장전 중...", ctx.canvas.width / 2, barY + barHeight + 20);
+
+    // 액티브 리로드 힌트 구간 표시
+    if (state.activeReloadWindow) {
+      const windowStart = state.activeReloadWindow.start / base.reloadTime;
+      const windowEnd = state.activeReloadWindow.end / base.reloadTime;
+      
+      ctx.fillStyle = "rgba(255, 255, 0, 0.3)";
+      ctx.fillRect(
+        barX + barWidth * windowStart,
+        barY,
+        barWidth * (windowEnd - windowStart),
+        barHeight
+      );
+
+      ctx.strokeStyle = "yellow";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        barX + barWidth * windowStart,
+        barY,
+        barWidth * (windowEnd - windowStart),
+        barHeight
+      );
+    }
+  }
+}
+
+// ==========================================
+// 12. WeaponSystem - 무기 시스템 
 // ==========================================
 
 class WeaponSystem {
@@ -590,6 +655,7 @@ class WeaponSystem {
         appearance: "pistol",
         reloadSound: "",
         fireSound: "",
+        activeReloadWindow: { start: 0.7, end: 1.0 }, // 재장전 시간의 70~100% 구간에서 활성화
       },
 
       knife: {
@@ -608,6 +674,7 @@ class WeaponSystem {
         appearance: "knife",
         reloadSound: "",
         fireSound: "",
+        activeReloadWindow: null, // 근접 무기는 액티브 리로드 없음
       },
     };
 
@@ -617,6 +684,8 @@ class WeaponSystem {
         reserveAmmo: 36,
         cooldownTimer: 0,
         isReloading: false,
+        reloadTimer: 0, // 재장전 진행 시간
+        activeReloadSuccess: false, // 액티브 리로드 성공 여부
       },
 
       knife: {
@@ -624,6 +693,8 @@ class WeaponSystem {
         reserveAmmo: Infinity,
         cooldownTimer: 0,
         isReloading: false,
+        reloadTimer: 0,
+        activeReloadSuccess: false,
       },
     };
 
@@ -635,15 +706,12 @@ class WeaponSystem {
 
     GameEvents.on("reloadPressed", () => {
       console.log("장전함수 호출");
-      this.reload();
+      this.startReload();
     });
     
     
   }
   
-
- 
-
   getCurrentBase() {
     return this.weaponBaseData[this.currentWeaponId];
   }
@@ -674,9 +742,105 @@ class WeaponSystem {
 
   update(deltaTime) {
     const state = this.getCurrentState();
+    const base = this.getCurrentBase();
 
+    // 발사 쿨다운 처리
     if (state.cooldownTimer > 0) {
       state.cooldownTimer -= deltaTime;
+    }
+
+    // 재장전 중인 경우 처리
+    if (state.isReloading) {
+      state.reloadTimer += deltaTime;
+
+      // 재장전 완료
+      if (state.reloadTimer >= base.reloadTime) {
+        this.completeReload();
+      }
+    }
+  }
+
+  startReload() {
+    const base = this.getCurrentBase();
+    const state = this.getCurrentState();
+
+    // 이미 재장전 중이면 무시
+    if (state.isReloading) return;
+    // 무한 탄약이면 무시
+    if (state.currentAmmo === Infinity) return;
+    // 예비탄약이 없으면 무시
+    if (state.reserveAmmo <= 0) return;
+    // 이미 가득 차있으면 무시
+    if (state.currentAmmo >= base.magazineSize) return;
+
+    // 재장전 시작
+    state.isReloading = true;
+    state.reloadTimer = 0;
+    state.activeReloadSuccess = false;
+
+    // 액티브 리로드 윈도우 정보
+    if (base.activeReloadWindow) {
+      state.activeReloadWindow = {
+        start: base.reloadTime * base.activeReloadWindow.start,
+        end: base.reloadTime * base.activeReloadWindow.end,
+      };
+    }
+
+    console.log(base.name + " 재장전 시작");
+    GameEvents.emit("reloadStarted", { weaponId: this.currentWeaponId });
+  }
+
+  completeReload() {
+    const base = this.getCurrentBase();
+    const state = this.getCurrentState();
+
+    const needAmmo = base.magazineSize - state.currentAmmo;
+    const reloadAmount = Math.min(needAmmo, state.reserveAmmo);
+
+    state.currentAmmo += reloadAmount;
+    state.reserveAmmo -= reloadAmount;
+
+    state.isReloading = false;
+    state.reloadTimer = 0;
+
+    // 액티브 리로드 성공 여부에 따른 보너스
+    if (state.activeReloadSuccess) {
+      console.log(base.name + " 재장전 완료! [액티브 리로드 성공!]");
+      // 액티브 리로드 성공 시 다음 발사의 대미지 증가 (20% 증가)
+      state.nextShotDamageBonus = 1.2;
+      GameEvents.emit("activeReloadSuccess", { weaponId: this.currentWeaponId });
+    } else {
+      console.log(base.name + " 재장전 완료");
+      GameEvents.emit("reloadCompleted", { weaponId: this.currentWeaponId });
+    }
+  }
+
+  // 액티브 리로드 입력 처리 (재장전 중에 R 키를 다시 누르는 경우)
+  tryActiveReload() {
+    const base = this.getCurrentBase();
+    const state = this.getCurrentState();
+
+    // 재장전 중이 아니면 무시
+    if (!state.isReloading) return;
+    // 액티브 리로드를 지원하지 않으면 무시
+    if (!base.activeReloadWindow) return;
+    // 이미 액티브 리로드를 성공했으면 무시
+    if (state.activeReloadSuccess) return;
+
+    // 현재 시간이 액티브 리로드 윈도우에 있는지 확인
+    const currentTime = state.reloadTimer;
+    const window = state.activeReloadWindow;
+
+    if (currentTime >= window.start && currentTime <= window.end) {
+      // 액티브 리로드 성공!
+      state.activeReloadSuccess = true;
+      console.log(base.name + " 액티브 리로드 성공!");
+      GameEvents.emit("activeReloadInput", { success: true, weaponId: this.currentWeaponId });
+    } else {
+      // 액티브 리로드 실패 (타이밍 못 맞춤)
+      console.log(base.name + " 액티브 리로드 실패 (타이밍 못 맞춤)");
+      // 실패 시에도 재장전은 계속 진행됨
+      GameEvents.emit("activeReloadInput", { success: false, weaponId: this.currentWeaponId });
     }
   }
 
@@ -687,7 +851,7 @@ class WeaponSystem {
     if (state.cooldownTimer > 0) return;
     if (state.isReloading) return;
     if (state.currentAmmo <= 0) {
-      this.reload();
+      this.startReload();
       return;
     }
 
@@ -697,32 +861,22 @@ class WeaponSystem {
 
     state.cooldownTimer = base.fireCooldown;
 
+    // 액티브 리로드 보너스 적용
+    let damage = base.damage;
+    if (state.nextShotDamageBonus) {
+      damage *= state.nextShotDamageBonus;
+      state.nextShotDamageBonus = 0;
+    }
+
     GameEvents.emit("weaponFired", {
       x: data.x,
       y: data.y,
-      damage: base.damage,
+      damage: damage,
       range: base.range,
       weaponId: this.currentWeaponId,
     });
 
     console.log(base.name + " 발사 / 남은 탄:", state.currentAmmo);
-  }
-
-  reload() {
-    const base = this.getCurrentBase();
-    const state = this.getCurrentState();
-    if (state.isReloading) return;
-    if (state.currentAmmo === Infinity) return;
-    if (state.reserveAmmo <= 0) return;
-    if (state.currentAmmo >= base.magazineSize) return;
-
-    const needAmmo = base.magazineSize - state.currentAmmo;
-    const reloadAmount = Math.min(needAmmo, state.reserveAmmo);
-
-    state.currentAmmo += reloadAmount;
-    state.reserveAmmo -= reloadAmount;
-
-    console.log(base.name + " 재장전");
   }
 }
 
@@ -936,6 +1090,17 @@ const weaponSystem = new WeaponSystem(aimSystem);
 gameSystems.register(weaponSystem);
 window.weaponSystem = weaponSystem;
 
+// InputManager에 액티브 리로드 이벤트 연결
+const originalHandleKeyDown = input.handleKeyDown.bind(input);
+input.handleKeyDown = function(e) {
+  originalHandleKeyDown(e);
+  
+  // R 키를 눌렀을 때 재장전 중이면 액티브 리로드 시도
+  if (e.code === "KeyR" && weaponSystem.getCurrentState().isReloading) {
+    weaponSystem.tryActiveReload();
+  }
+};
+
 //무기 테스트용
 //weaponSystem.equipWeapon("knife");
 weaponSystem.equipWeapon("pistol");
@@ -955,6 +1120,10 @@ gameSystems.register(interactionSystem);
 // 렌더러 등록
 const aimRenderer = new AimRenderer(aimSystem);
 renderSystems.register(aimRenderer);
+
+// 재장전 UI 렌더러
+const reloadRenderer = new ReloadRenderer(weaponSystem);
+renderSystems.register(reloadRenderer);
 
 // 초기 게임 객체 생성
 function initializeGameWorld() {
@@ -1008,6 +1177,5 @@ console.log("게임 시작!");
 /*
   1.좌표계는 뒤집혀있음
   2.무기 구조 중 추가하고 싶은 게 있으면 aimSystem에 먼저 추가하고 무기 구조체에 추가, equipWeapon함수에서 두 요소를 연동해주어야 함
-  
+  3.액티브 리로드: 재장전 중 정해진 타이밍(70~100%)에 R 키를 다시 누르면 성공. 성공 시 다음 발사의 대미지가 20% 증가함
 */
-
