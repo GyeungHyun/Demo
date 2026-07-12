@@ -706,7 +706,14 @@ class WeaponSystem {
 
     GameEvents.on("reloadPressed", () => {
       console.log("장전함수 호출");
-      this.startReload();
+      const state = this.getCurrentState();
+      
+      if(state.isReloading){
+        weaponSystem.tryActiveReload();
+       }
+      else{
+        this.startReload();
+      }
     });
     
     
@@ -1095,11 +1102,7 @@ const originalHandleKeyDown = input.handleKeyDown.bind(input);
 input.handleKeyDown = function(e) {
   originalHandleKeyDown(e);
   
-  // R 키를 눌렀을 때 재장전 중이면 액티브 리로드 시도
-  if (e.code === "KeyR" && weaponSystem.getCurrentState().isReloading) {
-    weaponSystem.tryActiveReload();
-  }
-};
+  
 
 //무기 테스트용
 //weaponSystem.equipWeapon("knife");
