@@ -843,13 +843,12 @@ class WeaponSystem {
       // 액티브 리로드 성공!
       state.activeReloadSuccess = true;
       console.log(base.name + " 액티브 리로드 성공!");
-      this.completeReload();
     } else {
       // 액티브 리로드 실패 (타이밍 못 맞춤)
       console.log(base.name + " 액티브 리로드 실패 (타이밍 못 맞춤)");
       // 실패 시에도 재장전은 계속 진행됨
-      this.completeReload();
     }
+    this.completeReload();
   }
 
   tryFire(data) {
