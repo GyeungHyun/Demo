@@ -46,6 +46,7 @@ class InputManager {
 
     if(e.code === "KeyR"){
       console.log("장전키 눌림");
+      
       GameEvents.emit("reloadPressed");
     }
   }
@@ -842,12 +843,12 @@ class WeaponSystem {
       // 액티브 리로드 성공!
       state.activeReloadSuccess = true;
       console.log(base.name + " 액티브 리로드 성공!");
-      GameEvents.emit("activeReloadInput", { success: true, weaponId: this.currentWeaponId });
+      this.completeReload();
     } else {
       // 액티브 리로드 실패 (타이밍 못 맞춤)
       console.log(base.name + " 액티브 리로드 실패 (타이밍 못 맞춤)");
       // 실패 시에도 재장전은 계속 진행됨
-      GameEvents.emit("activeReloadInput", { success: false, weaponId: this.currentWeaponId });
+      this.completeReload();
     }
   }
 
@@ -1097,11 +1098,6 @@ const weaponSystem = new WeaponSystem(aimSystem);
 gameSystems.register(weaponSystem);
 window.weaponSystem = weaponSystem;
 
-// InputManager에 액티브 리로드 이벤트 연결
-const originalHandleKeyDown = input.handleKeyDown.bind(input);
-input.handleKeyDown = function(e) {
-  originalHandleKeyDown(e);
-  
   
 
 //무기 테스트용
